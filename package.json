@@ -1,0 +1,16 @@
+{
+  "name": "autorizacao-previa-mat-med",
+  "version": "1.0.0",
+  "description": "Parametrização de Autorização Prévia para Materiais e Medicamentos — Unimed Cerrado",
+  "main": "scripts/automacao.js",
+  "author": "Wárreno Hendrick Costa Lima Guimarães",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "node scripts/automacao.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.0",
+    "playwright": "^1.0.0",
+    "xlsx": "^0.18.0"
+  }
+}
