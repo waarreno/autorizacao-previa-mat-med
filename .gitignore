@@ -4,6 +4,7 @@
 # Dependências
 node_modules/
 node_portavel/
+package-lock.json
 
 # Dados sensíveis
 dados/

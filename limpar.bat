@@ -3,15 +3,15 @@ chcp 65001 > nul
 title Autorização Prévia Mat/Med — Limpeza
 
 echo.
-echo ============================================
+echo ===========================================================
 echo   Autorização Prévia Mat/Med v1.0.0 — Limpar Dependências
-echo ============================================
+echo ===========================================================
 echo.
 echo   O que será removido:
 echo   - node_modules\
 echo   - node_portavel\
 echo   - package-lock.json
-    echo   - logs\progresso.json  (progresso de execução)
+    echo   - logs\               (pasta completa de logs)
 echo.
 echo   O que será MANTIDO:
 echo   - dados\base.xlsx      (sua planilha)
@@ -64,14 +64,14 @@ if exist "package-lock.json" (
 )
 
 :: -------------------------------------------------------
-:: Remove progresso (mas mantém os logs CSV)
+:: Remove pasta logs (histórico de execuções e progresso)
 :: -------------------------------------------------------
-if exist "logs\progresso.json" (
-    echo Removendo progresso.json...
-    del /f /q logs\progresso.json
-    echo [OK] progresso.json removido.
+if exist "logs" (
+    echo Removendo logs...
+    rmdir /s /q logs
+    echo [OK] logs removido.
 ) else (
-    echo [INFO] progresso.json não encontrado. Pulando.
+    echo [INFO] logs não encontrado. Pulando.
 )
 
 echo.
