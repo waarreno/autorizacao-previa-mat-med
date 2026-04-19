@@ -145,6 +145,42 @@ async function irParaCadastro(page) {
 }
 
 // -------------------------------------------------------------
+//  PARAMETRIZAÇÃO DO FORMULÁRIO (reutilizável)
+// -------------------------------------------------------------
+async function parametrizarFormulario(page) {
+  const frame = principal2(page);
+
+  // Marca "técnica / administrativa"
+  const radioTecnica = frame
+    .getByRole('cell', { name: 'técnica / administrativa' })
+    .locator('#ind_autorizacao');
+  await radioTecnica.scrollIntoViewIfNeeded();
+  const jaMarcado = await radioTecnica.isChecked();
+  if (!jaMarcado) {
+    await radioTecnica.check();
+    await page.waitForTimeout(300);
+  }
+
+  // Limpa campos de código de referência (depara)
+  const camposLimpar = [
+    '#COD_DEPARA_BRASINDICE',
+    '#COD_DEPARA_SIMPRO',
+    '#COD_DEPARA_PTU',
+    '#COD_DEPARA_TUSS_MED',
+    '#COD_DEPARA_TUSS_MAT',
+  ];
+  for (const seletor of camposLimpar) {
+    try {
+      const campo = principal2(page).locator(seletor);
+      if (await campo.count() > 0) {
+        await campo.scrollIntoViewIfNeeded();
+        await campo.clear();
+      }
+    } catch (_) {}
+  }
+}
+
+// -------------------------------------------------------------
 //  RELOGIN AUTOMÁTICO
 // -------------------------------------------------------------
 async function relogarSeNecessario(page) {
@@ -270,85 +306,166 @@ async function main() {
       await page.waitForTimeout(400);
       const framePos = principal2(page);
 
-      // 4. Localiza o radio "técnica / administrativa" de forma precisa:
-      //    busca pela célula que contém o texto e pega o input dentro dela.
-      //    Isso evita o strict mode violation (3 elementos com #ind_autorizacao).
-      const radioTecnica = framePos
-        .getByRole('cell', { name: 'técnica / administrativa' })
-        .locator('#ind_autorizacao');
+      // 4. Marca técnica/administrativa e limpa campos de referência (depara)
+      await parametrizarFormulario(page);
 
-      // 5. Scroll até o elemento para garantir visibilidade
-      await radioTecnica.scrollIntoViewIfNeeded();
-      await page.waitForTimeout(300);
-
-      // 6. Marca somente se ainda não estiver marcado
-      const jaMarcado = await radioTecnica.isChecked();
-      if (!jaMarcado) {
-        await radioTecnica.check();
-        await page.waitForTimeout(300);
-      } else {
-        console.log('   ℹ️  Técnica/Administrativa já estava marcada.');
-      }
-
-      // 7. Salva
+      // 5. Salva
       await toolbar(page).locator('#btn_acao_alterar > img').click();
 
-      // 8. Aguarda a resposta do servidor via polling —
+      // 9. Aguarda a resposta do servidor via polling —
       //    verifica a cada 500ms por até 15s se a mensagem de sucesso ou erro apareceu
+      //    Tratativas especiais:
+      //    - "Descrição já cadastrada" → acrescenta "_" à descrição e salva novamente
+      //    - "Referência do fabricante e ANVISA já cadastrado" → limpa campos e salva novamente
       console.log('   ⏳ Aguardando confirmação do servidor...');
       let msgSucesso = false;
       let msgErroTexto = '';
-      const inicioSalvar = Date.now();
 
-      while (Date.now() - inicioSalvar < 15000) {
-        try {
-          const frameResult = principal2(page);
+      // Ações obrigatórias antes de qualquer tentativa de salvar:
+      // marca Técnica/Administrativa e limpa campos "depara"
+      async function prepararFormulario() {
+        const framePre = principal2(page);
 
-          const countSucesso = await frameResult
-            .getByText('Operação realizada com sucesso')
-            .count();
-
-          if (countSucesso > 0) {
-            msgSucesso = true;
-            break;
-          }
-
-          // Verifica se apareceu alguma mensagem de erro visível
-          const countErro = await frameResult
-            .locator('.alert, .error, [class*="erro"], [class*="msg"]')
-            .count();
-
-          if (countErro > 0) {
-            msgErroTexto = await frameResult
-              .locator('.alert, .error, [class*="erro"], [class*="msg"]')
-              .first()
-              .textContent()
-              .catch(() => '');
-            // Garante que mensagem de sucesso capturada por seletor de erro
-            // não seja tratada como falha
-            if (msgErroTexto.trim()) {
-              if (msgErroTexto.toLowerCase().includes('sucesso')) {
-                msgSucesso = true;
-              }
-              break;
-            }
-          }
-        } catch (_) {
-          // iframe em transição — aguarda e tenta novamente
+        // Marca "técnica / administrativa"
+        const radioTecnicaPre = framePre
+          .getByRole('cell', { name: 'técnica / administrativa' })
+          .locator('#ind_autorizacao');
+        await radioTecnicaPre.scrollIntoViewIfNeeded();
+        const jaMarcadoPre = await radioTecnicaPre.isChecked();
+        if (!jaMarcadoPre) {
+          await radioTecnicaPre.check();
+          await page.waitForTimeout(300);
         }
-        await page.waitForTimeout(500);
+
+        // Limpa campos "depara"
+        const camposLimparPre = [
+          '#COD_DEPARA_BRASINDICE',
+          '#COD_DEPARA_SIMPRO',
+          '#COD_DEPARA_PTU',
+          '#COD_DEPARA_TUSS_MED',
+          '#COD_DEPARA_TUSS_MAT',
+        ];
+        for (const seletor of camposLimparPre) {
+          try {
+            const campo = principal2(page).locator(seletor);
+            if (await campo.count() > 0) {
+              await campo.scrollIntoViewIfNeeded();
+              await campo.clear();
+            }
+          } catch (_) {}
+        }
       }
+
+      // Aguarda a mensagem atual desaparecer da tela antes de iniciar novo polling.
+      // Necessário nas retentativas para evitar capturar a mensagem de erro anterior.
+      async function aguardarLimpezaTela(textoAnterior, timeoutMs = 5000) {
+        if (!textoAnterior) return;
+        const inicio = Date.now();
+        while (Date.now() - inicio < timeoutMs) {
+          try {
+            const frameCheck = principal2(page);
+            const ainda = await frameCheck
+              .getByText(textoAnterior, { exact: false })
+              .count();
+            if (ainda === 0) return;
+          } catch (_) {}
+          await page.waitForTimeout(300);
+        }
+      }
+
+      async function tentarSalvar(textoAnterior = '') {
+        // Se houver mensagem anterior visível, aguarda ela sumir antes de fazer polling
+        await aguardarLimpezaTela(textoAnterior);
+
+        const inicioTentativa = Date.now();
+        while (Date.now() - inicioTentativa < 15000) {
+          try {
+            const frameResult = principal2(page);
+
+            const countSucesso = await frameResult
+              .getByText('Operação realizada com sucesso')
+              .count();
+
+            if (countSucesso > 0) {
+              return { sucesso: true, msg: '' };
+            }
+
+            const countErro = await frameResult
+              .locator('.alert, .error, [class*="erro"], [class*="msg"]')
+              .count();
+
+            if (countErro > 0) {
+              const txt = await frameResult
+                .locator('.alert, .error, [class*="erro"], [class*="msg"]')
+                .first()
+                .textContent()
+                .catch(() => '');
+
+              if (txt.trim()) {
+                if (txt.toLowerCase().includes('sucesso')) {
+                  return { sucesso: true, msg: '' };
+                }
+                return { sucesso: false, msg: txt.trim() };
+              }
+            }
+          } catch (_) {
+            // iframe em transição — aguarda e tenta novamente
+          }
+          await page.waitForTimeout(500);
+        }
+        return { sucesso: false, msg: 'Timeout: resposta do servidor não detectada' };
+      }
+
+      // Primeira tentativa de salvar
+      let resultado = await tentarSalvar();
+
+      // Tratativa 1: "Descrição já cadastrada para o código X"
+      if (!resultado.sucesso && resultado.msg.toLowerCase().includes('descrição já cadastrada')) {
+        console.log('   ⚠️  Descrição duplicada — acrescentando "_" e salvando novamente...');
+        try {
+          const frameDesc = principal2(page);
+          const campoDesc = frameDesc.locator('#desc_item');
+          await campoDesc.scrollIntoViewIfNeeded();
+          const descAtual = await campoDesc.inputValue();
+          await campoDesc.fill(descAtual + '_');
+          await parametrizarFormulario(page);
+          await toolbar(page).locator('#btn_acao_alterar > img').click();
+          resultado = await tentarSalvar(resultado.msg);
+        } catch (eTrat) {
+          resultado = { sucesso: false, msg: 'Erro ao tratar descrição duplicada: ' + eTrat.message.slice(0, 80) };
+        }
+      }
+
+      // Tratativa 2: "Referência do fabricante e ANVISA já cadastrado para o código XXXXXXXX"
+      if (!resultado.sucesso && resultado.msg.toLowerCase().includes('referência do fabricante') && resultado.msg.toLowerCase().includes('anvisa')) {
+        console.log('   ⚠️  Referência/ANVISA duplicada — limpando campos e salvando novamente...');
+        try {
+          const frameRef = principal2(page);
+          const campoFab    = frameRef.locator('#cod_ref_fabricante');
+          const campoAnvisa = frameRef.locator('#cod_ministerio_saude');
+          if (await campoFab.count()    > 0) { await campoFab.scrollIntoViewIfNeeded();    await campoFab.clear(); }
+          if (await campoAnvisa.count() > 0) { await campoAnvisa.scrollIntoViewIfNeeded(); await campoAnvisa.clear(); }
+          await parametrizarFormulario(page);
+          await toolbar(page).locator('#btn_acao_alterar > img').click();
+          resultado = await tentarSalvar(resultado.msg);
+        } catch (eTrat) {
+          resultado = { sucesso: false, msg: 'Erro ao tratar referência/ANVISA duplicada: ' + eTrat.message.slice(0, 80) };
+        }
+      }
+
+      msgSucesso   = resultado.sucesso;
+      msgErroTexto = resultado.msg;
 
       if (msgSucesso) {
         registrarLog(codigo, tipo, 'SUCESSO');
         salvarProgresso(i);
         sucesso++;
       } else {
-        registrarLog(codigo, tipo, 'ERRO', msgErroTexto.trim() || 'Timeout: resposta do servidor não detectada');
+        registrarLog(codigo, tipo, 'ERRO', msgErroTexto || 'Timeout: resposta do servidor não detectada');
         erro++;
       }
 
-      // 9. Se houve erro, volta para a tela de busca.
+      // 10. Se houve erro, volta para a tela de busca.
       //    Se foi sucesso, a própria tela já está limpa para o próximo registro.
       if (!msgSucesso) {
         await irParaCadastro(page);
