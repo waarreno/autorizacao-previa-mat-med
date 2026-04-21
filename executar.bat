@@ -1,6 +1,10 @@
-@echo off
+﻿@echo off
 chcp 65001 > nul
 title Autorização Prévia Mat/Med — Execução
+
+:: %~dp0 = pasta onde este .bat está instalado (sempre correto,
+::          independente de onde o atalho foi chamado)
+set BASE=%~dp0
 
 echo.
 echo ================================================
@@ -14,8 +18,8 @@ echo.
 node -v > nul 2>&1
 if not errorlevel 1 goto :verificar_deps
 
-if exist "node_portavel\node.exe" (
-    set PATH=%CD%\node_portavel;%CD%\node_portavel\node_modules\.bin;%PATH%
+if exist "%BASE%node_portavel\node.exe" (
+    set PATH=%BASE%node_portavel;%BASE%node_portavel\node_modules\.bin;%PATH%
     echo [OK] Usando Node.js portável.
     goto :verificar_deps
 )
@@ -29,7 +33,7 @@ exit /b 1
 :: Verifica dependências instaladas
 :: -------------------------------------------------------
 :verificar_deps
-if not exist "node_modules\playwright" (
+if not exist "%BASE%node_modules\playwright" (
     echo [ERRO] Dependências não instaladas.
     echo        Execute primeiro: 1_instalar.bat
     pause
@@ -39,20 +43,20 @@ if not exist "node_modules\playwright" (
 :: -------------------------------------------------------
 :: Verifica arquivos essenciais
 :: -------------------------------------------------------
-if not exist ".env" (
+if not exist "%BASE%.env" (
     echo [ERRO] Arquivo .env não encontrado.
     echo        Crie o arquivo .env com USUARIO e SENHA.
     pause
     exit /b 1
 )
 
-if not exist "dados\base.xlsx" (
+if not exist "%BASE%dados\base.xlsx" (
     echo [ERRO] Planilha não encontrada em dados\base.xlsx
     pause
     exit /b 1
 )
 
-if not exist "scripts\automacao.js" (
+if not exist "%BASE%scripts\automacao.js" (
     echo [ERRO] Script não encontrado em scripts\automacao.js
     pause
     exit /b 1
@@ -61,12 +65,19 @@ if not exist "scripts\automacao.js" (
 :: -------------------------------------------------------
 :: Verifica progresso anterior
 :: -------------------------------------------------------
-if exist "logs\progresso.json" (
+if exist "%BASE%logs\progresso.json" (
     echo [INFO] Progresso anterior detectado.
     echo        A execução será retomada do ponto onde parou.
     echo        Para reiniciar do zero, delete: logs\progresso.json
     echo.
 )
+
+:: -------------------------------------------------------
+:: Muda para a pasta de instalação antes de executar
+:: Garante que caminhos relativos dentro do Node.js
+:: também funcionem corretamente
+:: -------------------------------------------------------
+cd /d "%BASE%"
 
 :: -------------------------------------------------------
 :: Execução
@@ -77,7 +88,7 @@ echo Iniciando automação...
 echo Para interromper: Ctrl + C
 echo.
 
-call node scripts/automacao.js
+call node scripts\automacao.js
 
 echo.
 if errorlevel 1 (

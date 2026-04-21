@@ -1,0 +1,19 @@
+Autorização Prévia — Parametrização de Materiais e Medicamentos
+
+Automação web para parametrização em lote do campo Autorização Prévia
+no cadastro de Materiais e Medicamentos, com base em planilha Excel.
+
+Copyright (c) 2026 Wárreno Hendrick Costa Lima Guimarães
+Unimed Cerrado — Coordenação de Contas Médicas
+Versão: 1.0.0
+
+---
+
+USO AUTORIZADO
+Este software é de uso interno e exclusivo da Unimed Cerrado.
+É vedada a reprodução, distribuição ou modificação sem autorização
+expressa do autor.
+
+ISENÇÃO DE RESPONSABILIDADE
+O software é fornecido "como está", sem garantias de qualquer natureza.
+O autor não se responsabiliza por danos decorrentes do uso indevido.
