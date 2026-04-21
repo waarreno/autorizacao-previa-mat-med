@@ -226,7 +226,7 @@ async function main() {
   console.log(`📄 Log será gravado em: ${LOG_FILE}\n`);
   iniciarLog();
 
-  const browser = await chromium.launch({ headless: false, slowMo: 80 });
+  const browser = await chromium.launch({ headless: false, slowMo: 0 });
   const context = await browser.newContext();
   const page    = await context.newPage();
 
